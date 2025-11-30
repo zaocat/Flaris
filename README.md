@@ -6,6 +6,14 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?logo=tailwindcss&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
+![Light Mode](screenshots/light.png)
+
+<p align="center">Light Mode screenshot</p>
+
+![Dark Mode](screenshots/dark.png) 
+
+<p align="center">Dark Mode screenshot</p>
+
 [English](#english) | [中文说明](#chinese)
 
 ---
