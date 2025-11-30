@@ -84,6 +84,14 @@ With a single `worker.js` file, Flaris delivers a robust admin panel featuring v
 
 仅需一个 `worker.js` 文件，Flaris 就提供了强大的后台管理功能，包括可视化编辑、拖拽排序、私有链接保护以及中英文国际化支持，并拥有精美的磨砂玻璃 UI 设计。
 
+### 🌟 Flaris 名字由来
+
+组合：Flare (Cloudflare) + Polaris (北极星)
+
+含义：Cloudflare 上的指路明星。
+
+点评：听起来非常高级、优雅，符合“导航/指引”的寓意，同时包含了 Cloudflare 的元素。
+
 ### ✨ 功能特性
 
 * **☁️ Serverless 架构:** 100% 运行在 Cloudflare Workers 上（免费版额度足够个人使用）。
