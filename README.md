@@ -20,7 +20,9 @@ With a single `worker.js` file, Flaris delivers a robust admin panel featuring v
 ### 🌟 Origin of the name Flaris: 
 
 Combination of Flare (Cloudflare) and Polaris (North Star). 
+
 Meaning: The guiding star on Cloudflare. 
+
 Commentary: It sounds very sophisticated and elegant, fitting the image of a "navigator".
 
 ### ✨ Features
