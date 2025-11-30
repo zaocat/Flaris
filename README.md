@@ -1,4 +1,5 @@
-# Flaris 🧭 Your bookmark galaxy on the edge. / 云端导航站
+# Flaris 🧭
+> **Your bookmark galaxy on the edge.**
 
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange?logo=cloudflare&logoColor=white)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3.0-4FC08D?logo=vuedotjs&logoColor=white)
@@ -12,9 +13,9 @@
 <a name="english"></a>
 ## 📖 English
 
-**CF-Nav** is a lightweight, serverless, and highly customizable navigation/bookmark site running entirely on **Cloudflare Workers**. It uses **Cloudflare KV** for data storage, requiring no external server or database.
+**Flaris** is a lightweight, serverless, and highly customizable personal navigation/start page running entirely on **Cloudflare Workers**. It uses **Cloudflare KV** for data storage, meaning you get a fast, secure, and free personal dashboard without managing any servers or databases.
 
-It features a modern UI built with **Vue 3** and **Tailwind CSS**, offering a seamless experience for both visitors and administrators.
+With a single `worker.js` file, Flaris delivers a robust admin panel featuring visual editing, drag-and-drop sorting, private links, and internationalization (i18n), all wrapped in a beautiful glassmorphism UI.
 
 ### ✨ Features
 
@@ -33,52 +34,55 @@ It features a modern UI built with **Vue 3** and **Tailwind CSS**, offering a se
 * **💾 Backup & Restore:** One-click JSON export/import to keep your data safe.
 * **🔍 Global Search:** Real-time filtering of all links.
 
-### 🚀 Quick Deployment
+### 🚀 Deployment Guide (Latest UI)
 
-1.  **Login to Cloudflare Dashboard:**
-    * Go to `Workers & Pages` -> `Overview`.
-    * Click `Create Application` -> `Create Worker`.
-    * Name it (e.g., `my-nav`) and `Deploy`.
+1.  **Create Worker:**
+    * Log in to the Cloudflare Dashboard.
+    * Go to **Compute (Worker & Pages)** -> **Overview**.
+    * Click **Create** -> **Create Worker**.
+    * Name it (e.g., `flaris`) and click **Deploy**.
 
-2.  **Configure KV Namespace:**
-    * Go to `Workers & Pages` -> `KV`.
-    * Click `Create a Namespace`, name it `NAV_KV` (or any name).
-    * Go back to your Worker -> `Settings` -> `Variables` -> `KV Namespace Bindings`.
-    * **Variable name:** `NAV_DB` (Case sensitive, must be exact).
-    * **KV Namespace:** Select the `NAV_KV` you just created.
+2.  **Create KV Namespace:**
+    * Go to the sidebar menu **Storage & Databases** -> **Workers KV**.
+    * Click **Create a Namespace**.
+    * Name it `NAV_KV` (or any name you like) and click **Add**.
 
-3.  **Set Admin Password:**
-    * In your Worker -> `Settings` -> `Variables` -> `Environment Variables`.
-    * Click `Add variable`.
-    * **Variable name:** `ADMIN_PASSWORD`.
-    * **Value:** Your desired password (e.g., `123456`).
-    * Click `Deploy` (or Save and Deploy).
+3.  **Bind KV & Set Password:**
+    * Go back to your Worker (`Compute` -> `Workers & Pages` -> Select your worker).
+    
+    * **Step A: Bind KV**
+        * Click the **Settings** (or **Bindings**) tab.
+        * Scroll to **Bindings** (or click "Add binding").
+        * Click **Add** -> **KV Namespace**.
+        * **Variable name:** `NAV_DB` (**Must be exactly this**).
+        * **KV Namespace:** Select the `NAV_KV` you created in step 2.
+        * Click **Deploy**.
+
+    * **Step B: Set Password**
+        * Click the **Settings** tab -> **Variables**.
+        * Click **Add variable**.
+        * **Variable name:** `ADMIN_PASSWORD`.
+        * **Value:** Your desired password (e.g., `123456`).
+        * Click **Deploy** (or "Save and Deploy").
 
 4.  **Upload Code:**
-    * Click `Edit code`.
-    * Copy the content of `worker.js` from this repository.
-    * Paste it into the Cloudflare editor (replace existing code).
-    * Click `Deploy`.
+    * Click the **Edit code** button (top right).
+    * Delete the existing code in `worker.js`.
+    * Copy and paste the entire content of `worker.js` from this repository.
+    * Click **Deploy** (top right).
 
 5.  **Enjoy!**
-    * Visit your Worker URL (e.g., `https://my-nav.your-name.workers.dev`).
-    * Click the **Shield Icon** (or Gear Icon) in the top-right corner to login.
-
-### 🛠️ Configuration
-
-You can customize the site title, logo, and favicon directly in the **Admin Panel -> Settings**.
-
-* **Admin Entry:** Click the Shield/Gear icon in the header.
-* **Private Items:** Check the "Private Link" box when editing. These items show a lock icon and are hidden from public view.
+    * Visit your Worker URL.
+    * Click the **Shield Icon** (top right) or **Menu** (mobile) to login.
 
 ---
 
 <a name="chinese"></a>
 ## 🇨🇳 中文说明
 
-**CF-Nav** 是一个轻量级、无服务器的个人导航/书签站，完全运行在 **Cloudflare Workers** 上。它使用 **Cloudflare KV** 作为数据库，无需购买任何服务器。
+**Flaris** 是一个追求极致简约与高性能的现代化无服务器导航站。它完全运行在 **Cloudflare Workers** 上，使用 **KV 存储** 数据。这意味着你无需购买服务器或数据库，就能拥有一个快速、安全且免费的个人仪表盘。
 
-前端基于 **Vue 3** 和 **Tailwind CSS** 构建，拥有现代化的 UI 设计和强大的后台管理功能。
+仅需一个 `worker.js` 文件，Flaris 就提供了强大的后台管理功能，包括可视化编辑、拖拽排序、私有链接保护以及中英文国际化支持，并拥有精美的磨砂玻璃 UI 设计。
 
 ### ✨ 功能特性
 
@@ -97,48 +101,55 @@ You can customize the site title, logo, and favicon directly in the **Admin Pane
 * **💾 备份与恢复:** 支持一键导出 JSON 备份数据，或导入 JSON 恢复数据。
 * **🔍 全局搜索:** 顶部自带搜索框，实时过滤所有链接。
 
-### 🚀 部署教程
+### 🚀 部署教程 (最新版控制台)
 
-1.  **登录 Cloudflare:**
-    * 进入 `Workers & Pages` -> `Overview`。
-    * 点击 `Create Application` -> `Create Worker`。
-    * 给 Worker 起个名字（例如 `my-nav`），然后点击 `Deploy`。
+1.  **创建 Worker:**
+    * 登录 Cloudflare 控制台。
+    * 在左侧菜单找到 **计算 (Workers 和 Pages)** -> **概述**。
+    * 点击 **创建应用程序** -> **创建 Worker**。
+    * 给它起个名字（例如 `flaris`），然后点击 **部署**。
 
-2.  **配置 KV 数据库:**
-    * 在左侧菜单点击 `KV`。
-    * 点击 `Create a Namespace`，命名为 `NAV_KV`（名字随意）。
-    * 回到你刚才创建的 Worker -> `Settings` -> `Variables` -> `KV Namespace Bindings`。
-    * 点击 `Add binding`。
-    * **Variable name (变量名):** 必须填写 `NAV_DB` (大小写敏感)。
-    * **KV Namespace:** 选择你刚才创建的 `NAV_KV`。
-    * 点击 `Save and Deploy`。
+2.  **创建 KV 存储:**
+    * 在左侧菜单找到 **存储和数据库** -> **Workers KV**。
+    * 点击 **创建命名空间**。
+    * 输入名称 `NAV_KV` (或者你喜欢的名字)，点击 **添加**。
 
-3.  **设置管理密码:**
-    * 仍在 Worker 的 `Settings` -> `Variables` 页面，找到 `Environment Variables` (环境变量)。
-    * 点击 `Add variable`。
-    * **Variable name:** `ADMIN_PASSWORD`。
-    * **Value:** 填写你想要的后台密码（例如 `123456`）。
-    * 点击 `Save and Deploy`。
+3.  **绑定 KV 与设置密码:**
+    * 回到你刚才创建的 Worker 页面 (`计算` -> `Workers 和 Pages` -> 选择你的 Worker)。
+    
+    * **步骤 A: 绑定 KV 数据库**
+        * 点击 **设置 (Settings)** 标签页 -> **绑定 (Bindings)** (或者直接点击顶部的 **绑定** 标签)。
+        * 点击 **添加 (Add)** -> **KV 命名空间**。
+        * **变量名称 (Variable name):** 填写 `NAV_DB` (**必须完全一致，注意大写**)。
+        * **KV 命名空间:** 选择你在第 2 步创建的 `NAV_KV`。
+        * 点击 **部署 (Deploy)** 保存。
+
+    * **步骤 B: 设置后台密码**
+        * 点击 **设置 (Settings)** 标签页 -> **变量 (Variables)**。
+        * 点击 **添加变量 (Add variable)**。
+        * **变量名称:** 填写 `ADMIN_PASSWORD`。
+        * **值:** 填写你想要的后台登录密码 (例如 `123456`)。
+        * 点击 **部署 (Deploy)** 保存。
 
 4.  **上传代码:**
-    * 点击右上角的 `Edit code` 按钮进入编辑器。
-    * 复制本项目 `worker.js` 的所有代码。
-    * 覆盖编辑器中的默认代码。
-    * 点击右上角的 `Deploy`。
+    * 点击右上角的 **编辑代码 (Edit code)** 按钮。
+    * 删除编辑器中默认的 hello world 代码。
+    * 将本项目 `worker.js` 的所有代码复制粘贴进去。
+    * 点击右上角的 **部署 (Deploy)**。
 
 5.  **开始使用:**
-    * 访问你的 Worker 域名（例如 `https://my-nav.your-name.workers.dev`）。
-    * 点击右上角的 **盾牌图标** 或 **设置图标** 进入管理后台。
-    * 输入刚才设置的密码即可开始配置你的导航站！
+    * 访问你的 Worker 域名。
+    * 点击右上角的 **盾牌图标** (管理后台) 或移动端的菜单按钮进行登录。
+    * 输入刚才设置的密码即可开始配置你的 Flaris 导航站！
 
-### 🛠️ 常见问题与设置
+### 🛠️ 常见问题
 
 * **如何修改网站标题和 Logo？**
     * 登录后台后，点击左下角的 **“设置”** 按钮，在弹窗中可以修改前台标题、后台标题、Logo、Favicon 以及 GitHub 地址等。
 * **私有链接是什么？**
     * 在添加或编辑链接时，勾选“私有链接”。该链接在未登录状态下不会加载，也不会出现在网页源码中，适合存放 NAS、路由器后台等敏感地址。
 * **如何自定义 CSS/JS？**
-    * 在“站点设置”的“高级”选项卡中，你可以注入自定义的 CSS 样式或 JavaScript 代码（用于统计代码等）。
+    * 在“站点设置”的“高级”选项卡中，你可以注入自定义的 CSS 样式或 JavaScript 代码（用于添加统计代码、修改字体等）。
 
 ## 📄 License
 
