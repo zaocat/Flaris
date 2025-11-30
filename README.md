@@ -177,4 +177,4 @@ Commentary: It sounds very sophisticated and elegant, fitting the image of a "na
 
 ## 📄 License
 
-MIT License
+[MIT License](https://github.com/zaocat/Flaris?tab=MIT-1-ov-file)
