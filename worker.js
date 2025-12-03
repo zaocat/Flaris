@@ -1,10 +1,9 @@
 /**
- * Flaris 🧭 Your bookmark galaxy on the edge. - Dark Mode Hover Boost Edition
- * 版本：V7
- * 修复内容：
- * 1. [UI] 大幅增强管理后台暗色模式下【导出/导入/设置/预览】按钮的鼠标悬停效果（蓝光高亮+边框变色）。
- * 2. [核心] 保持 1101 错误修复方案（无模板插值冲突）。
- * 3. [功能] 包含所有完整功能（多选、私有、排序、搜索、i18n等）。
+ * Cloudflare Worker Navigation - Hover Reveal Edition
+ * 更新内容：
+ * 1. [UI] 访客端卡片默认**隐藏描述**，仅居中显示图标和标题，界面更清爽。
+ * 2. [交互] 鼠标悬停时，描述内容通过磨砂遮罩层浮现。
+ * 3. [核心] 保持 1101 错误防御机制（无服务端模板插值）。
  */
 
 const DEFAULT_DATA = {
@@ -17,9 +16,9 @@ const DEFAULT_DATA = {
   customCSS: "",
   customJS: "",
   items: {
-    "i_demo1": { title: "Google", url: "https://www.google.com", desc: "全球最大搜索引擎", icon: "", isPrivate: false },
-    "i_demo2": { title: "GitHub", url: "https://github.com", desc: "代码托管平台", icon: "", isPrivate: false },
-    "i_demo3": { title: "NAS管理", url: "http://192.168.1.1", desc: "仅管理员可见", icon: "fas fa-hdd", isPrivate: true }
+    "i_demo1": { title: "Google", url: "https://www.google.com", desc: "全球最大搜索引擎，提供强大的搜索功能，覆盖网页、图片、新闻等海量信息。", icon: "", isPrivate: false },
+    "i_demo2": { title: "GitHub", url: "https://github.com", desc: "全球最大的代码托管平台，开发者首选，拥有海量开源项目。", icon: "", isPrivate: false },
+    "i_demo3": { title: "NAS管理", url: "http://192.168.1.1", desc: "仅管理员可见的内部链接", icon: "fas fa-hdd", isPrivate: true }
   },
   categories: [
     {
@@ -216,8 +215,10 @@ export default {
       const path = url.pathname;
       const isAdminReq = url.searchParams.get("admin") === "1";
 
+      // 检查 KV 绑定
       if (!env.NAV_DB) throw new Error("KV Namespace 'NAV_DB' not bound.");
 
+      // CORS
       if (request.method === "OPTIONS") {
         return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" }});
       }
@@ -302,7 +303,6 @@ function ensureData(data) {
   return data;
 }
 
-// 1. 访客端 (Public)
 function getPublicPage() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -359,11 +359,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
         <div class="flex items-center gap-2 shrink-0">
           <a v-if="db.githubUrl" :href="db.githubUrl" target="_blank" title="GitHub Project" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white/50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 rounded-full transition-all"><i class="fab fa-github text-lg"></i></a>
           <a href="/admin" target="_blank" :title="db.adminTitle||t('admin_panel')" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-white/50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 rounded-full transition-all"><img v-if="isImageUrl(db.adminIcon)" :src="db.adminIcon" class="w-5 h-5 object-contain"><i v-else :class="db.adminIcon||'fas fa-user-shield'" class="text-base"></i></a>
-          
-          <button @click="toggleLang" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:bg-white/50 dark:text-slate-400 dark:hover:bg-slate-800 rounded-full transition-all" :title="t('toggle_lang')">
-             <i class="fas fa-language text-lg"></i>
-          </button>
-
+          <button @click="toggleLang" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:bg-white/50 dark:text-slate-400 dark:hover:bg-slate-800 rounded-full transition-all" :title="t('toggle_lang')"><i class="fas fa-language text-lg"></i></button>
           <button @click="toggleTheme" :title="t('toggle_theme')" class="w-9 h-9 flex items-center justify-center text-amber-500 hover:bg-amber-50 dark:text-slate-400 dark:hover:text-amber-300 dark:hover:bg-slate-800 rounded-full transition-all"><i :class="isDark?'fas fa-moon':'fas fa-sun'"></i></button>
           <button class="md:hidden text-slate-600 ml-2 text-xl" @click="mobileMenuOpen=!mobileMenuOpen"><i class="fas fa-bars"></i></button>
         </div>
@@ -398,22 +394,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
     <div v-if="loading" class="flex justify-center mt-20"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>
     <div v-else class="animate-fade-in-up flex-1 flex flex-col">
       <div v-if="isSearching" class="mb-6 flex items-center gap-2 text-lg font-bold text-slate-700 dark:text-slate-200"><i class="fas fa-search text-blue-500"></i><span>{{ t('search_result') }}: "{{searchQuery}}"</span><span class="text-sm font-normal text-slate-400 ml-2">({{displayedItems.length}} {{ t('items_count') }})</span></div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mb-8">
-        <a v-for="item in displayedItems" :key="item.id" :href="item.url" target="_blank" class="group card-glass p-5 rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col relative overflow-hidden h-32">
-          <div class="flex flex-col h-full transition-opacity duration-300 group-hover:opacity-10">
-             <div class="flex items-start gap-4 mb-3">
-               <div class="w-10 h-10 rounded-lg bg-white/80 dark:bg-slate-700/80 p-1.5 shrink-0 flex items-center justify-center shadow-sm relative">
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-8">
+        <a v-for="item in displayedItems" :key="item.id" :href="item.url" target="_blank" class="group card-glass p-3 rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col relative overflow-hidden h-24">
+          <div class="flex flex-col items-center justify-center h-full transition-opacity duration-300 group-hover:opacity-10">
+             <div class="relative mb-2">
+               <div class="w-8 h-8 rounded-lg bg-white/80 dark:bg-slate-700/80 p-1.5 flex items-center justify-center shadow-sm">
                  <img :src="item.icon||getFav(item.url)" @error="defIcon" class="w-full h-full object-contain rounded-md filter group-hover:brightness-110">
-                 <div v-if="item.isPrivate" class="absolute -top-1 -right-1 w-4 h-4 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-[10px] ring-1 ring-white dark:ring-slate-800"><i class="fas fa-lock"></i></div>
                </div>
-               <h3 class="font-bold text-[15px] text-slate-800 dark:text-slate-100 line-clamp-2 group-hover:text-blue-600 transition-colors leading-snug pt-0.5">{{item.title}}</h3>
+               <div v-if="item.isPrivate" class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-[8px] ring-1 ring-white dark:ring-slate-800"><i class="fas fa-lock"></i></div>
              </div>
-             <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-auto leading-relaxed">{{item.desc|| t('no_content') }}</p>
+             <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 text-center leading-tight line-clamp-1">{{item.title}}</h3>
           </div>
-          <div class="absolute inset-0 px-5 py-4 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+          
+          <div class="absolute inset-0 px-3 py-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
              <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium overflow-y-auto max-h-full scrollbar-none text-center">{{item.desc|| t('no_content') }}</p>
           </div>
-          <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0 z-20"><i class="fas fa-external-link-alt text-xs text-blue-400"></i></div>
+          
+          <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0 z-20"><i class="fas fa-external-link-alt text-xs text-blue-400"></i></div>
         </a>
       </div>
       <div v-if="displayedItems.length===0" class="flex flex-col items-center justify-center py-20 text-slate-400 flex-1"><div class="w-16 h-16 bg-white/50 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-2xl mb-4 shadow-sm"><i class="fas fa-box-open text-slate-300"></i></div><p class="text-sm">{{ t('no_content') }}</p></div>
@@ -438,7 +435,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
 </div>
 <script>
   window.onerror = function(msg, url, line) { console.error('App Error: ' + msg + ' ' + url + ':' + line); return false; };
-  const MESSAGES = __I18N_DATA__;
+  const MESSAGES = ${JSON.stringify(I18N_MESSAGES)};
   const { createApp, ref, computed, onMounted } = Vue;
   createApp({
     setup() {
@@ -515,7 +512,7 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
 .modal-enter-active,.modal-leave-active{transition:all 0.2s ease}.modal-enter-from,.modal-leave-to{opacity:0;transform:scale(0.95)}
 .toast-enter-active,.toast-leave-active{transition:all 0.3s ease}.toast-enter-from,.toast-leave-to{opacity:0;transform:translateY(-20px)}
 /* Consistent Glass Effects */
-.glass{background:rgba(255,255,255,0.7);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid rgba(255,255,255,0.3)}
+.glass{background:rgba(255,255,255,0.7);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.5)}
 .dark .glass{background:rgba(15,23,42,0.7);border-bottom:1px solid rgba(255,255,255,0.05)}
 .sidebar-glass{background:rgba(255,255,255,0.6);backdrop-filter:blur(20px) saturate(180%);border-right:1px solid rgba(255,255,255,0.3)}
 .dark .sidebar-glass{background:rgba(15,23,42,0.6);border-right:1px solid rgba(255,255,255,0.05)}
@@ -569,12 +566,12 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
       
       <div class="p-4 border-t border-slate-200/50 bg-white/30 backdrop-blur-sm space-y-3 dark:border-slate-700/50 dark:bg-slate-900/30">
          <div class="grid grid-cols-2 gap-2">
-           <button @click="exportData" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 shadow-sm hover:shadow-md transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-500 dark:hover:text-blue-400"><i class="fas fa-download"></i> {{ t('export') }}</button>
-           <label class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 shadow-sm hover:shadow-md transition-all cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-500 dark:hover:text-blue-400"><i class="fas fa-upload"></i> {{ t('import') }}<input type="file" class="hidden" accept=".json" @change="importData"></label>
+           <button @click="exportData" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-400 dark:hover:bg-blue-900/30"><i class="fas fa-download"></i> {{ t('export') }}</button>
+           <label class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 shadow-sm transition-all cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-400 dark:hover:bg-blue-900/30"><i class="fas fa-upload"></i> {{ t('import') }}<input type="file" class="hidden" accept=".json" @change="importData"></label>
          </div>
          <div class="grid grid-cols-2 gap-2">
-           <button @click="openSiteSet" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 shadow-sm hover:shadow-md transition-all group dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-500 dark:hover:text-blue-400"><i class="fas fa-cog transition-transform group-hover:rotate-90"></i> {{ t('settings') }}</button>
-           <a href="/" target="_blank" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-green-300 hover:text-green-600 shadow-sm hover:shadow-md transition-all group dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-green-900/20 dark:hover:border-green-500 dark:hover:text-green-400"><i class="fas fa-external-link-alt transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"></i> {{ t('preview') }}</a>
+           <button @click="openSiteSet" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-400 dark:hover:bg-blue-900/30" :title="t('settings')"><i class="fas fa-cog"></i> {{ t('settings') }}</button>
+           <a href="/" target="_blank" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-green-500 hover:text-green-600 hover:bg-green-50 shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-green-500 dark:hover:text-green-400 dark:hover:bg-green-900/30" :title="t('preview')"><i class="fas fa-external-link-alt"></i> {{ t('preview') }}</a>
          </div>
          <button @click="save" :disabled="saving" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"><i :class="saving?'fas fa-circle-notch fa-spin':'fas fa-cloud-upload-alt'"></i> {{saving? t('saving') : t('save_publish')}}</button>
       </div>
@@ -644,7 +641,7 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
   </transition>
 </div>
 <script>
-  window.onerror = function(msg, url, line) { alert('Error: ' + msg + '\\n' + url + ':' + line); return false; };
+  window.onerror = function(msg, url, line) { console.error('App Error: ' + msg + ' ' + url + ':' + line); return false; };
   
   // i18n Data
   const MESSAGES = ${JSON.stringify(I18N_MESSAGES)};
@@ -654,7 +651,7 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
     setup() {
       const token = ref(localStorage.getItem('nav_token')||'');
       const password = ref('');
-      const db = ref({title:'', adminTitle:'', logo:'', adminLogo:'', adminIcon:'', favicon:'', githubUrl:'', customCSS:'', customJS:'', items:{}, categories:[]});
+      const db = ref({title:'', adminTitle:'', logo:'', adminIcon:'', favicon:'', githubUrl:'', customCSS:'', customJS:'', items:{}, categories:[]});
       const curCatIdx = ref(0);
       const curSubIdx = ref(-1);
       const modal = ref({show:false, type:'', title:'', data:{}, callback:null});
