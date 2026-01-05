@@ -1,14 +1,15 @@
 /**
- * Cloudflare Worker Navigation - Hover Reveal Edition
+ * Cloudflare Worker Navigation - V12 Full Orange Interaction
  * 更新内容：
- * 1. [UI] 访客端卡片默认**隐藏描述**，仅居中显示图标和标题，界面更清爽。
- * 2. [交互] 鼠标悬停时，描述内容通过磨砂遮罩层浮现。
- * 3. [核心] 保持 1101 错误防御机制（无服务端模板插值）。
+ * 1. [交互] 顶部导航栏 (Category) 鼠标悬停增加 Cloudflare 橙色光晕/描边/文字变色。
+ * 2. [交互] 下拉子菜单 (Sub-category) 鼠标悬停同步增加橙色光效。
+ * 3. [交互] 移动端侧边栏菜单同步应用橙色交互。
+ * 4. [核心] 继承 V11 的所有特性（防白屏、毛玻璃、大气层配色）。
  */
 
 const DEFAULT_DATA = {
-  title: "我的云端导航",
-  adminTitle: "管理控制台",
+  title: "Flaris 导航",
+  adminTitle: "Flaris Admin",
   logo: "fas fa-compass", 
   adminIcon: "fas fa-user-shield",
   favicon: "https://www.google.com/favicon.ico",
@@ -25,7 +26,7 @@ const DEFAULT_DATA = {
       id: "c_demo", name: "演示栏目", icon: "fas fa-star",
       itemIds: ["i_demo1"], 
       subCategories: [
-        { id: "s_demo", name: "常用工具", itemIds: ["i_demo2", "i_demo3"] }
+        { id: "s_demo", name: "常用工具", icon: "fas fa-tools", itemIds: ["i_demo2", "i_demo3"] }
       ]
     }
   ]
@@ -89,7 +90,7 @@ const I18N_MESSAGES = {
     added_pool: "已添加至内容池",
     exist_err: "所选链接已存在",
     modal_name: "名称",
-    modal_icon: "图标 (支持类名或URL)",
+    modal_icon: "图标 (类名或URL)",
     modal_icon_ph: "fas fa-star 或 https://...",
     modal_site_title: "网站标题",
     modal_admin_title: "管理后台标题",
@@ -98,7 +99,7 @@ const I18N_MESSAGES = {
     modal_admin_icon_ph: "fas fa-user-shield 或 URL",
     modal_admin_logo: "后台左上角 Logo",
     modal_admin_logo_ph: "fas fa-cog 或 URL",
-    modal_logo: "Logo (图标类名/URL)",
+    modal_logo: "Logo (类名/URL)",
     modal_favicon: "Favicon (URL)",
     modal_github: "GitHub 项目地址",
     modal_github_ph: "https://github.com/...",
@@ -215,10 +216,8 @@ export default {
       const path = url.pathname;
       const isAdminReq = url.searchParams.get("admin") === "1";
 
-      // 检查 KV 绑定
       if (!env.NAV_DB) throw new Error("KV Namespace 'NAV_DB' not bound.");
 
-      // CORS
       if (request.method === "OPTIONS") {
         return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" }});
       }
@@ -239,7 +238,6 @@ export default {
 
         if (!response) {
           let data = await env.NAV_DB.get("nav_data", { type: "json" });
-          if (!data) data = DEFAULT_DATA;
           data = ensureData(data);
           const publicData = JSON.parse(JSON.stringify(data));
           if (publicData.items) {
@@ -274,6 +272,7 @@ export default {
       }
       
       let html = getPublicPage();
+      // 使用更安全的 replace 方式，但确保 HTML 模板里有这个占位符
       html = html.replace('__I18N_DATA__', JSON.stringify(I18N_MESSAGES));
       return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 
@@ -289,20 +288,31 @@ function checkAuth(req, env) {
 }
 
 function ensureData(data) {
-  if (!data) data = JSON.parse(JSON.stringify(DEFAULT_DATA));
-  if (!data.items) data.items = {};
-  if (!data.categories) data.categories = [];
-  const keys = ['title', 'adminTitle', 'logo', 'adminLogo', 'adminIcon', 'favicon', 'githubUrl', 'customCSS', 'customJS'];
-  keys.forEach(k => { if (data[k] === undefined) data[k] = DEFAULT_DATA[k] || ""; });
-  if (data.categories.length > 0 && !data.categories[0].itemIds) {
-      data.categories.forEach(c => { 
-          if(!c.itemIds) c.itemIds = []; 
-          if(c.subCategories) c.subCategories.forEach(s => { if(!s.itemIds) s.itemIds = []; });
-      });
+  try {
+    if (!data) data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+    if (!data.items) data.items = {};
+    if (!data.categories) data.categories = [];
+    const keys = ['title', 'adminTitle', 'logo', 'adminLogo', 'adminIcon', 'favicon', 'githubUrl', 'customCSS', 'customJS'];
+    keys.forEach(k => { if (data[k] === undefined) data[k] = DEFAULT_DATA[k] || ""; });
+    if (data.categories) {
+        data.categories.forEach(c => { 
+            if(!c.itemIds) c.itemIds = []; 
+            if(c.subCategories) {
+                c.subCategories.forEach(s => { 
+                    if(!s.itemIds) s.itemIds = []; 
+                    if(s.icon === undefined) s.icon = ""; // Icon Fix
+                });
+            }
+        });
+    }
+    return data;
+  } catch(e) {
+    console.error("Data integrity error, resetting to default", e);
+    return JSON.parse(JSON.stringify(DEFAULT_DATA));
   }
-  return data;
 }
 
+// 1. 访客端 (Public)
 function getPublicPage() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -317,16 +327,29 @@ function getPublicPage() {
 <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#3b82f6'}}}}</script>
 <style>
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}[v-cloak]{display:none}
+/* Revised Glassmorphism Styles for Better Contrast */
 .glass{background:rgba(255,255,255,0.7);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid rgba(255,255,255,0.3)}
 .dark .glass{background:rgba(15,23,42,0.7);border-bottom:1px solid rgba(255,255,255,0.05)}
-.card-glass{background:rgba(255,255,255,0.6);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.5)}
-.dark .card-glass{background:rgba(30,41,59,0.4);border:1px solid rgba(255,255,255,0.05)}
+.card-glass{
+    /* Increased opacity for distinct boundary */
+    background:rgba(255,255,255,0.7); 
+    backdrop-filter:blur(16px) saturate(180%);
+    border:1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+.dark .card-glass{
+    background:rgba(30,41,59,0.5);
+    border:1px solid rgba(255,255,255,0.05);
+    box-shadow:0 4px 6px -1px rgba(0,0,0,0.3);
+}
 .dropdown-menu{opacity:0;visibility:hidden;transform:translateY(10px);transition:all 0.2s cubic-bezier(0.16,1,0.3,1);pointer-events:none}
 .group:hover .dropdown-menu{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto}
 .scrollbar-none::-webkit-scrollbar {display: none;}
+#error-display { display: none; position: fixed; top: 0; left: 0; background: red; color: white; padding: 10px; z-index: 9999; font-size: 12px; }
 </style>
 </head>
-<body class="text-slate-700 dark:text-slate-200 min-h-screen flex flex-col transition-colors duration-500 bg-fixed bg-gradient-to-br from-blue-50 via-indigo-50 to-slate-100 dark:from-slate-950 dark:via-[#0f172a] dark:to-[#1e1b4b]">
+<body class="text-slate-700 dark:text-slate-200 min-h-screen flex flex-col transition-colors duration-500 bg-fixed bg-gradient-to-b from-[#f8fafc] via-[#eff6ff] to-[#e2e8f0] dark:from-[#0f172a] dark:via-[#1e293b] dark:to-[#0b1120]">
+<div id="error-display"></div>
 <div id="app" v-cloak :class="{'dark':isDark}" class="flex-1 flex flex-col">
   <header class="fixed top-0 inset-x-0 h-16 glass z-50 transition-all duration-300">
     <div class="container mx-auto px-4 h-full flex items-center justify-between">
@@ -337,12 +360,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
       </div>
       <nav class="hidden md:flex h-full items-center space-x-1">
         <div v-for="(cat,idx) in db.categories" :key="cat.id" class="group relative h-full flex items-center px-1">
-          <button @click="selectCategory(idx)" class="px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 transform active:scale-95" :class="(!isSearching&&activeCatIdx===idx)?'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-black/5 dark:bg-slate-800 dark:text-blue-400 dark:ring-white/10':'text-slate-600 hover:bg-white/60 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-blue-300'">
+          <button @click="selectCategory(idx)" class="px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 transform active:scale-95" :class="(!isSearching&&activeCatIdx===idx)?'bg-white text-blue-600 shadow-md shadow-blue-500/10 ring-1 ring-black/5 dark:bg-slate-800 dark:text-blue-400 dark:ring-white/10':'text-slate-600 hover:bg-orange-50 hover:text-orange-600 hover:ring-1 hover:ring-orange-500/50 hover:shadow-lg hover:shadow-orange-500/20 dark:text-slate-400 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 dark:hover:ring-orange-400/50'">
             <img v-if="isImageUrl(cat.icon)" :src="cat.icon" class="w-4 h-4 object-contain"><i v-else :class="cat.icon||'fas fa-folder'" class="text-xs"></i><span>{{cat.name}}</span>
           </button>
           <div v-if="cat.subCategories.length" class="dropdown-menu absolute top-[85%] left-0 w-max max-w-xl p-0 pt-4 z-50">
             <div class="flex flex-wrap gap-2">
-              <button v-for="(sub,sIdx) in cat.subCategories" :key="sub.id" @click.stop="selectSubCategory(idx,sIdx)" class="group/item relative flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 shadow-md backdrop-blur-md" :class="(!isSearching&&activeCatIdx===idx&&activeSubIdx===sIdx)?'bg-blue-600 text-white ring-2 ring-blue-200 dark:ring-blue-900':'bg-white/90 text-slate-600 hover:bg-white hover:text-blue-600 dark:bg-slate-800/90 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-blue-400 hover:scale-105'">
+              <button v-for="(sub,sIdx) in cat.subCategories" :key="sub.id" @click.stop="selectSubCategory(idx,sIdx)" class="group/item relative flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 shadow-md backdrop-blur-md" :class="(!isSearching&&activeCatIdx===idx&&activeSubIdx===sIdx)?'bg-blue-600 text-white ring-2 ring-blue-200 dark:ring-blue-900':'bg-white/90 text-slate-600 hover:bg-orange-50 hover:text-orange-600 hover:ring-1 hover:ring-orange-500/50 hover:shadow-md hover:shadow-orange-500/20 dark:bg-slate-800/90 dark:text-slate-300 dark:hover:bg-orange-900/30 dark:hover:text-orange-400 dark:hover:ring-orange-400/50 hover:scale-105'">
                 <div v-if="sub.icon" class="opacity-70 group-hover/item:opacity-100"><img v-if="isImageUrl(sub.icon)" :src="sub.icon" class="w-3 h-3 object-contain"><i v-else :class="sub.icon"></i></div>
                 <span>{{sub.name}}</span>
                 <span class="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[9px] shadow-sm transition-colors" :class="(!isSearching&&activeCatIdx===idx&&activeSubIdx===sIdx)?'bg-white/20 text-white':'bg-slate-100 text-slate-400 dark:bg-slate-900 dark:text-slate-500'">{{sub.itemIds.length}}</span>
@@ -359,7 +382,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
         <div class="flex items-center gap-2 shrink-0">
           <a v-if="db.githubUrl" :href="db.githubUrl" target="_blank" title="GitHub Project" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-white/50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 rounded-full transition-all"><i class="fab fa-github text-lg"></i></a>
           <a href="/admin" target="_blank" :title="db.adminTitle||t('admin_panel')" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-white/50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 rounded-full transition-all"><img v-if="isImageUrl(db.adminIcon)" :src="db.adminIcon" class="w-5 h-5 object-contain"><i v-else :class="db.adminIcon||'fas fa-user-shield'" class="text-base"></i></a>
-          <button @click="toggleLang" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:bg-white/50 dark:text-slate-400 dark:hover:bg-slate-800 rounded-full transition-all" :title="t('toggle_lang')"><i class="fas fa-language text-lg"></i></button>
+          
+          <button @click="toggleLang" class="w-9 h-9 flex items-center justify-center text-slate-500 hover:bg-white/50 dark:text-slate-400 dark:hover:bg-slate-800 rounded-full transition-all" :title="t('toggle_lang')">
+             <i class="fas fa-language text-lg"></i>
+          </button>
+
           <button @click="toggleTheme" :title="t('toggle_theme')" class="w-9 h-9 flex items-center justify-center text-amber-500 hover:bg-amber-50 dark:text-slate-400 dark:hover:text-amber-300 dark:hover:bg-slate-800 rounded-full transition-all"><i :class="isDark?'fas fa-moon':'fas fa-sun'"></i></button>
           <button class="md:hidden text-slate-600 ml-2 text-xl" @click="mobileMenuOpen=!mobileMenuOpen"><i class="fas fa-bars"></i></button>
         </div>
@@ -379,11 +406,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
       </div>
       <div class="flex-1 overflow-y-auto p-4 space-y-2">
          <div v-for="(cat,idx) in db.categories" :key="cat.id">
-           <button @click="selectCategory(idx);mobileMenuOpen=false" class="w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-3" :class="activeCatIdx===idx?'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400':'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'">
+           <button @click="selectCategory(idx);mobileMenuOpen=false" class="w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-3" :class="activeCatIdx===idx?'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400':'text-slate-600 dark:text-slate-400 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-slate-800 dark:hover:text-orange-400'">
              <img v-if="isImageUrl(cat.icon)" :src="cat.icon" class="w-5 h-5 object-contain"><i v-else :class="cat.icon||'fas fa-folder'"></i>{{cat.name}}
            </button>
            <div v-if="activeCatIdx===idx && cat.subCategories.length" class="mt-2 ml-4 pl-4 border-l border-slate-200 dark:border-slate-700 space-y-1">
-             <button v-for="(sub,sIdx) in cat.subCategories" :key="sub.id" @click.stop="selectSubCategory(idx,sIdx);mobileMenuOpen=false" class="w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex justify-between items-center" :class="(activeSubIdx===sIdx)?'text-blue-600 font-bold bg-blue-50/50 dark:text-blue-400':'text-slate-500 dark:text-slate-400'"><span>{{sub.name}}</span><span class="text-[10px] opacity-50">{{sub.itemIds.length}}</span></button>
+             <button v-for="(sub,sIdx) in cat.subCategories" :key="sub.id" @click.stop="selectSubCategory(idx,sIdx);mobileMenuOpen=false" class="w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex justify-between items-center" :class="(activeSubIdx===sIdx)?'text-blue-600 font-bold bg-blue-50/50 dark:text-blue-400':'text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400'"><span>{{sub.name}}</span><span class="text-[10px] opacity-50">{{sub.itemIds.length}}</span></button>
            </div>
          </div>
       </div>
@@ -394,16 +421,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
     <div v-if="loading" class="flex justify-center mt-20"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>
     <div v-else class="animate-fade-in-up flex-1 flex flex-col">
       <div v-if="isSearching" class="mb-6 flex items-center gap-2 text-lg font-bold text-slate-700 dark:text-slate-200"><i class="fas fa-search text-blue-500"></i><span>{{ t('search_result') }}: "{{searchQuery}}"</span><span class="text-sm font-normal text-slate-400 ml-2">({{displayedItems.length}} {{ t('items_count') }})</span></div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-8">
-        <a v-for="item in displayedItems" :key="item.id" :href="item.url" target="_blank" class="group card-glass p-3 rounded-xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col relative overflow-hidden h-24">
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-8">
+        <a v-for="item in displayedItems" :key="item.id" :href="item.url" target="_blank" class="group card-glass p-3 rounded-xl shadow-md ring-1 ring-black/5 dark:ring-white/10 hover:shadow-xl hover:shadow-orange-500/30 hover:ring-orange-500/60 hover:-translate-y-1 transition-all duration-300 flex flex-col relative overflow-hidden h-24">
           <div class="flex flex-col items-center justify-center h-full transition-opacity duration-300 group-hover:opacity-10">
              <div class="relative mb-2">
-               <div class="w-8 h-8 rounded-lg bg-white/80 dark:bg-slate-700/80 p-1.5 flex items-center justify-center shadow-sm">
+               <div class="w-8 h-8 rounded-lg bg-white/50 dark:bg-slate-700/50 p-1.5 flex items-center justify-center shadow-sm">
                  <img :src="item.icon||getFav(item.url)" @error="defIcon" class="w-full h-full object-contain rounded-md filter group-hover:brightness-110">
                </div>
                <div v-if="item.isPrivate" class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-[8px] ring-1 ring-white dark:ring-slate-800"><i class="fas fa-lock"></i></div>
              </div>
-             <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 text-center leading-tight line-clamp-1">{{item.title}}</h3>
+             <h3 class="font-bold text-sm text-slate-800 dark:text-slate-100 text-center leading-tight line-clamp-1 group-hover:text-orange-600 transition-colors">{{item.title}}</h3>
           </div>
           
           <div class="absolute inset-0 px-3 py-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
@@ -425,7 +452,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
       </div>
     </div>
   </main>
-  <footer class="bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border-t border-white/20 dark:border-white/5 mt-8 py-6">
+  <footer class="bg-slate-200/50 dark:bg-slate-900/50 backdrop-blur-md border-t border-white/20 dark:border-white/5 mt-8 py-6">
     <div class="container mx-auto px-4 flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
       <div class="flex items-center gap-1 cursor-default group"><span>&copy; {{new Date().getFullYear()}}</span><span class="font-bold transition-all duration-300 group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-blue-500 group-hover:to-purple-600">{{db.title}}</span></div>
       <span class="hidden sm:inline-block opacity-30">|</span>
@@ -433,9 +460,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
     </div>
   </footer>
 </div>
+<script id="i18n-data" type="application/json">__I18N_DATA__</script>
 <script>
-  window.onerror = function(msg, url, line) { console.error('App Error: ' + msg + ' ' + url + ':' + line); return false; };
-  const MESSAGES = ${JSON.stringify(I18N_MESSAGES)};
+  window.onerror = function(msg, url, line) { 
+      const el = document.getElementById('error-display');
+      if(el) { el.style.display = 'block'; el.innerText = 'Error: ' + msg + ' (' + line + ')'; }
+      return false; 
+  };
+  
+  // Safe parsing of data
+  let MESSAGES = {};
+  try {
+      MESSAGES = JSON.parse(document.getElementById('i18n-data').textContent);
+  } catch(e) { console.error("I18N Data Parse Error", e); }
+
   const { createApp, ref, computed, onMounted } = Vue;
   createApp({
     setup() {
@@ -448,7 +486,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
       const mobileMenuOpen = ref(false);
       const token = localStorage.getItem('nav_token');
       const lang = ref(localStorage.getItem('nav_lang') || 'zh');
-      const t = (key) => { if (key === 'no_content') return MESSAGES[lang.value]['no_content'] || '暂无内容'; return MESSAGES[lang.value][key] || key; };
+      const t = (key) => { 
+          if(!MESSAGES[lang.value]) return key;
+          if (key === 'no_content') return MESSAGES[lang.value]['no_content'] || '暂无内容'; 
+          return MESSAGES[lang.value][key] || key; 
+      };
       const toggleLang = () => { lang.value = lang.value === 'zh' ? 'en' : 'zh'; localStorage.setItem('nav_lang', lang.value); };
 
       onMounted(async () => {
@@ -462,8 +504,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
                 if(db.value.categories.length === 0) db.value.categories.push({name:'默认', itemIds:[], subCategories:[]});
                 updateMeta();
                 injectCustomCode();
+            } else {
+                console.error("API Error", res.status);
             }
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error("Fetch Error", e); }
         loading.value = false;
       });
 
@@ -512,7 +556,7 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
 .modal-enter-active,.modal-leave-active{transition:all 0.2s ease}.modal-enter-from,.modal-leave-to{opacity:0;transform:scale(0.95)}
 .toast-enter-active,.toast-leave-active{transition:all 0.3s ease}.toast-enter-from,.toast-leave-to{opacity:0;transform:translateY(-20px)}
 /* Consistent Glass Effects */
-.glass{background:rgba(255,255,255,0.7);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.5)}
+.glass{background:rgba(255,255,255,0.7);backdrop-filter:blur(20px) saturate(180%);border-bottom:1px solid rgba(255,255,255,0.3)}
 .dark .glass{background:rgba(15,23,42,0.7);border-bottom:1px solid rgba(255,255,255,0.05)}
 .sidebar-glass{background:rgba(255,255,255,0.6);backdrop-filter:blur(20px) saturate(180%);border-right:1px solid rgba(255,255,255,0.3)}
 .dark .sidebar-glass{background:rgba(15,23,42,0.6);border-right:1px solid rgba(255,255,255,0.05)}
@@ -566,12 +610,12 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
       
       <div class="p-4 border-t border-slate-200/50 bg-white/30 backdrop-blur-sm space-y-3 dark:border-slate-700/50 dark:bg-slate-900/30">
          <div class="grid grid-cols-2 gap-2">
-           <button @click="exportData" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-400 dark:hover:bg-blue-900/30"><i class="fas fa-download"></i> {{ t('export') }}</button>
-           <label class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 shadow-sm transition-all cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-400 dark:hover:bg-blue-900/30"><i class="fas fa-upload"></i> {{ t('import') }}<input type="file" class="hidden" accept=".json" @change="importData"></label>
+           <button @click="exportData" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-500 dark:hover:text-blue-400"><i class="fas fa-download"></i> {{ t('export') }}</button>
+           <label class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 shadow-sm transition-all cursor-pointer dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-500 dark:hover:text-blue-400"><i class="fas fa-upload"></i> {{ t('import') }}<input type="file" class="hidden" accept=".json" @change="importData"></label>
          </div>
          <div class="grid grid-cols-2 gap-2">
-           <button @click="openSiteSet" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-blue-500 dark:hover:text-blue-400 dark:hover:bg-blue-900/30" :title="t('settings')"><i class="fas fa-cog"></i> {{ t('settings') }}</button>
-           <a href="/" target="_blank" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-green-500 hover:text-green-600 hover:bg-green-50 shadow-sm transition-all dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:border-green-500 dark:hover:text-green-400 dark:hover:bg-green-900/30" :title="t('preview')"><i class="fas fa-external-link-alt"></i> {{ t('preview') }}</a>
+           <button @click="openSiteSet" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 shadow-sm transition-all group dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-blue-900/20 dark:hover:border-blue-500 dark:hover:text-blue-400"><i class="fas fa-cog transition-transform group-hover:rotate-90"></i> {{ t('settings') }}</button>
+           <a href="/" target="_blank" class="flex items-center justify-center gap-2 px-2 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:border-green-300 hover:text-green-600 shadow-sm transition-all group dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-green-900/20 dark:hover:border-green-500 dark:hover:text-green-400"><i class="fas fa-external-link-alt transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"></i> {{ t('preview') }}</a>
          </div>
          <button @click="save" :disabled="saving" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"><i :class="saving?'fas fa-circle-notch fa-spin':'fas fa-cloud-upload-alt'"></i> {{saving? t('saving') : t('save_publish')}}</button>
       </div>
@@ -641,9 +685,9 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
   </transition>
 </div>
 <script>
-  window.onerror = function(msg, url, line) { console.error('App Error: ' + msg + ' ' + url + ':' + line); return false; };
+  window.onerror = function(msg, url, line) { alert('Error: ' + msg); return false; };
   
-  // i18n Data
+  // 注入数据到变量
   const MESSAGES = ${JSON.stringify(I18N_MESSAGES)};
   
   const { createApp, ref, computed, onMounted } = Vue;
@@ -651,7 +695,7 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
     setup() {
       const token = ref(localStorage.getItem('nav_token')||'');
       const password = ref('');
-      const db = ref({title:'', adminTitle:'', logo:'', adminIcon:'', favicon:'', githubUrl:'', customCSS:'', customJS:'', items:{}, categories:[]});
+      const db = ref({title:'', adminTitle:'', logo:'', adminLogo:'', adminIcon:'', favicon:'', githubUrl:'', customCSS:'', customJS:'', items:{}, categories:[]});
       const curCatIdx = ref(0);
       const curSubIdx = ref(-1);
       const modal = ref({show:false, type:'', title:'', data:{}, callback:null});
@@ -663,7 +707,7 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
       const isDark = ref(localStorage.theme === 'dark');
       
       const lang = ref(localStorage.getItem('nav_lang') || 'zh');
-      const t = (key) => MESSAGES[lang.value][key] || key;
+      const t = (key) => { if (key === 'no_content') return MESSAGES[lang.value]['no_content'] || '暂无内容'; return MESSAGES[lang.value][key] || key; };
       const toggleLang = () => { lang.value = lang.value === 'zh' ? 'en' : 'zh'; localStorage.setItem('nav_lang', lang.value); };
       
       const presets = ['fas fa-home', 'fas fa-star', 'fas fa-fire', 'fas fa-bolt', 'fas fa-heart', 'fas fa-code', 'fas fa-terminal', 'fas fa-laptop-code', 'fas fa-database', 'fas fa-server', 'fas fa-image', 'fas fa-video', 'fas fa-music', 'fas fa-gamepad', 'fas fa-film', 'fas fa-book', 'fas fa-graduation-cap', 'fas fa-pen-nib', 'fas fa-newspaper', 'fas fa-rss', 'fas fa-shopping-cart', 'fas fa-money-bill', 'fas fa-tag', 'fas fa-gift', 'fas fa-credit-card', 'fas fa-cloud', 'fas fa-wifi', 'fas fa-lock', 'fas fa-key', 'fas fa-shield-alt', 'fas fa-user', 'fas fa-users', 'fas fa-comment', 'fas fa-envelope', 'fas fa-phone'];
@@ -720,7 +764,8 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
       const injectCustomCode = () => { if (db.value.customCSS) { const style = document.createElement('style'); style.innerHTML = db.value.customCSS; document.head.appendChild(style); } if (db.value.customJS) { const script = document.createElement('script'); script.innerHTML = db.value.customJS; document.body.appendChild(script); } };
       const isImageUrl = (str) => str && (str.startsWith('http') || str.startsWith('/')) && !str.includes(' ');
       const getFav = (u) => { try { return 'https://favicon.im/' + new URL(u).hostname; } catch { return ''; } };
-
+      const defIcon = (e) => e.target.src = 'https://ui-avatars.com/api/?background=random&color=fff&name=Nav';
+      
       const selCat = (i) => { curCatIdx.value = i; curSubIdx.value = -1; showAllMode.value = false; };
       const selSub = (i) => { curSubIdx.value = i; showAllMode.value = false; };
       const switchToAll = () => { showAllMode.value = true; curSubIdx.value = -1; };
@@ -738,8 +783,8 @@ body{font-family:'Inter',sans-serif}[v-cloak]{display:none}.hide-scrollbar::-web
       const delCat = (i) => { if(confirm(t('confirm_del_cat'))) db.value.categories.splice(i,1); };
       const moveCat = (i, dir) => { const arr = db.value.categories; if(i+dir>=0 && i+dir<arr.length) [arr[i], arr[i+dir]] = [arr[i+dir], arr[i]]; };
       
-      const addSub = () => curCat.value && openModal('sub', t('new_sub'), {name:'New Sub'}, (d)=>{ curCat.value.subCategories.push({id:'s'+genId(), ...d, itemIds:[]}); curSubIdx.value = curCat.value.subCategories.length-1; });
-      const editSub = (i) => openModal('sub', t('edit_sub'), curCat.value.subCategories[i], (d) => Object.assign(curCat.value.subCategories[i], d));
+      const addSub = () => curCat.value && openModal('sub', t('new_sub'), {name:'New Sub', icon:'fas fa-folder'}, (d)=>{ curCat.value.subCategories.push({id:'s'+genId(), ...d, itemIds:[]}); curSubIdx.value = curCat.value.subCategories.length-1; });
+      const editSub = (i) => openModal('sub', t('edit_sub'), {icon:'', ...curCat.value.subCategories[i]}, (d) => Object.assign(curCat.value.subCategories[i], d));
       const delSub = (i) => { if(!confirm(t('confirm_del_sub'))) return; curCat.value.subCategories.splice(i,1); if (curSubIdx.value === i || curSubIdx.value >= curCat.value.subCategories.length) { curSubIdx.value = -1; } };
       
       const addItem = () => { 
