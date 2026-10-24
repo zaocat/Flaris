@@ -1,6 +1,6 @@
 /**
- * Cloudflare Worker Navigation - V25.11 Fixed Edition
- * 包含：Open-Meteo高精度天气、随机多句问候语、高透明度轻量仪表盘
+ * Cloudflare Worker Navigation - V25.12 Drag & Drop Edition
+ * 包含：Open-Meteo高精度天气、随机多句问候语、高透明度轻量仪表盘、后台拖拽排序
  */
 
 const DEFAULT_DATA = {
@@ -1301,7 +1301,18 @@ body{font-family:'Inter',sans-serif}.hide-scrollbar::-webkit-scrollbar{display:n
         <div class="max-w-6xl mx-auto">
           <div class="flex justify-end items-center mb-4" v-if="!showAllMode"><button @click="addItem" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2" :title="t('add_link')"><i class="fas fa-plus"></i> {{ t('add_link') }}</button></div>
           <div class="space-y-3">
-            <div v-for="(itemId,iIdx) in filteredAdminItems" :key="itemId" class="flex items-center gap-4 bg-white/80 backdrop-blur-sm p-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all group relative dark:bg-slate-800/80 dark:border-slate-700">
+            <div v-for="(itemId,iIdx) in filteredAdminItems" :key="itemId" 
+                 :draggable="!showAllMode && !adminSearchQuery"
+                 @dragstart="handleDragStart($event, iIdx)"
+                 @dragend="handleDragEnd($event)"
+                 @dragover="handleDragOver($event)"
+                 @drop="handleDrop($event, iIdx)"
+                 class="flex items-center gap-4 bg-white/80 backdrop-blur-sm p-3 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all group relative dark:bg-slate-800/80 dark:border-slate-700 cursor-grab active:cursor-grabbing">
+              
+              <div v-if="!showAllMode && !adminSearchQuery" class="text-slate-300 hover:text-slate-500 cursor-grab px-1">
+                <i class="fas fa-grip-vertical"></i>
+              </div>
+
               <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center shrink-0 border border-slate-100 shadow-sm dark:bg-slate-700 dark:border-slate-600"><img v-if="db.items[itemId]" :src="db.items[itemId].icon||getFav(db.items[itemId].url)" class="w-6 h-6 object-contain" loading="lazy"><i v-else class="fas fa-question text-slate-300"></i></div>
               <div class="flex-1 min-w-0" v-if="db.items[itemId]"><div class="flex items-center gap-2"><span class="font-bold text-slate-700 truncate dark:text-slate-200">{{db.items[itemId].title}}</span><span v-if="db.items[itemId].isPrivate" class="text-[10px] bg-amber-100 text-amber-600 px-1.5 rounded border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800"><i class="fas fa-lock"></i> {{ t('private') }}</span></div><div class="text-xs text-blue-500 truncate mt-0.5 hover:underline">{{db.items[itemId].url}}</div></div>
               <div v-else class="flex-1 text-red-500 text-sm"><i class="fas fa-unlink"></i> 引用已失效</div>
@@ -1423,6 +1434,34 @@ body{font-family:'Inter',sans-serif}.hide-scrollbar::-webkit-scrollbar{display:n
       
       const curItemList = filteredAdminItems;
 
+      // 📌 拖拽排序逻辑
+      const dragSourceIndex = ref(null);
+      const handleDragStart = (e, index) => {
+          dragSourceIndex.value = index;
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', index);
+          e.target.classList.add('opacity-40');
+      };
+      const handleDragEnd = (e) => {
+          e.target.classList.remove('opacity-40');
+          dragSourceIndex.value = null;
+      };
+      const handleDragOver = (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+      };
+      const handleDrop = (e, targetIndex) => {
+          e.preventDefault();
+          const sourceIndex = dragSourceIndex.value;
+          if (sourceIndex !== null && sourceIndex !== targetIndex) {
+              const arr = curSubIdx.value === -1 
+                  ? curCat.value.itemIds 
+                  : curCat.value.subCategories[curSubIdx.value].itemIds;
+              const [movedItem] = arr.splice(sourceIndex, 1);
+              arr.splice(targetIndex, 0, movedItem);
+          }
+      };
+
       const showToast = (msg, type='success') => { toast.value = {show:true, msg, type}; setTimeout(() => toast.value.show=false, 3000); };
       
       const load = async () => { 
@@ -1510,7 +1549,10 @@ body{font-family:'Inter',sans-serif}.hide-scrollbar::-webkit-scrollbar{display:n
       const exportData = () => { const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db.value)); const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", "nav_backup.json"); document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove(); };
       const importData = (event) => { const file = event.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (e) => { try { const json = JSON.parse(e.target.result); if(confirm(t('confirm_overwrite'))) { db.value = json; save(); } } catch(err) { alert(t('file_error')); } }; reader.readAsText(file); };
 
-      return { token, password, db, curCatIdx, curSubIdx, curCat, curItemList, modal, tab, siteTab, searchLib, filteredLib, toast, saving, login, save, getFav, selCat, selSub, addCategory, editCat, delCat, moveCat, addSub, editSub, delSub, addItem, editItem, unlinkItem, deleteItem, moveItem, toggleLibSelect, openSiteSet, saveModal, isImageUrl, presets, exportData, importData, showAllMode, switchToAll, filteredAdminItems, adminSearchQuery, isDark, toggleTheme, t, toggleLang, lang, currentDisplayAdminTitle };
+      return { 
+          token, password, db, curCatIdx, curSubIdx, curCat, curItemList, modal, tab, siteTab, searchLib, filteredLib, toast, saving, login, save, getFav, selCat, selSub, addCategory, editCat, delCat, moveCat, addSub, editSub, delSub, addItem, editItem, unlinkItem, deleteItem, moveItem, toggleLibSelect, openSiteSet, saveModal, isImageUrl, presets, exportData, importData, showAllMode, switchToAll, filteredAdminItems, adminSearchQuery, isDark, toggleTheme, t, toggleLang, lang, currentDisplayAdminTitle,
+          handleDragStart, handleDragEnd, handleDragOver, handleDrop 
+      };
     }
   }).mount('#app');
 </script>
