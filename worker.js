@@ -1,6 +1,6 @@
 /**
- * Cloudflare Worker Navigation - V25.12 Drag & Drop Edition
- * 包含：Open-Meteo高精度天气、随机多句问候语、高透明度轻量仪表盘、后台拖拽排序
+ * Cloudflare Worker Navigation - V25.15 Server-Side Proxy Favicon Edition
+ * 包含：后端代理抓取 Favicon 缓存、国内直连备用、自定义黑猫月亮默认兜底图标
  */
 
 const DEFAULT_DATA = {
@@ -18,7 +18,7 @@ const DEFAULT_DATA = {
   defaultCityEn: "",
   items: {
     "i_demo1": { title: "Google", url: "https://www.google.com", desc: "全球最大搜索引擎，提供强大的搜索功能，覆盖网页、图片、新闻等海量信息。", icon: "", isPrivate: false },
-    "i_demo2": { title: "GitHub", url: "https://github.com", desc: "全球最大的代码托管平台，开发者首选，拥有海量开源项目。", icon: "", isPrivate: false },
+    "i_demo2": { title: "GitHub", url: "https://github.com", desc: "最大的代码托管平台，开发者首选，拥有海量开源项目。", icon: "", isPrivate: false },
     "i_demo3": { title: "NAS管理", url: "http://192.168.1.1", desc: "仅管理员可见的内部链接", icon: "fas fa-hdd", isPrivate: true }
   },
   categories: [
@@ -100,7 +100,7 @@ const I18N_MESSAGES = {
     modal_admin_icon: "管理入口图标",
     modal_admin_icon_ph: "fas fa-user-shield 或 URL",
     modal_admin_logo: "后台左上角 Logo",
-    modal_admin_logo_ph: "fas fa-cog 或 URL",
+    modal_admin_logo_ph: "fas fa-cog أو URL",
     modal_logo: "Logo (类名/URL)",
     modal_favicon: "Favicon (URL)",
     modal_github: "GitHub 项目地址",
@@ -296,6 +296,45 @@ export default {
 
       if (request.method === "OPTIONS") {
         return new Response(null, { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, Authorization" }});
+      }
+
+      // 📌 新增：服务端 Favicon 代理接口，彻底解决前端跨域和直连失败问题
+      if (path === "/api/icon") {
+        const targetUrl = url.searchParams.get("url");
+        if (!targetUrl) return new Response("Missing url", { status: 400 });
+
+        try {
+          const targetObj = new URL(targetUrl);
+          const domain = targetObj.hostname;
+          
+          // 尝试按顺序从多个稳定源抓取图标
+          const sources = [
+            `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
+            `https://favicon.im/${domain}`,
+            `https://api.iowen.cn/favicon/${domain}.png`,
+          ];
+
+          let iconRes = null;
+          for (const src of sources) {
+            try {
+              const res = await fetch(src, { headers: { "User-Agent": "Mozilla/5.0" }, cf: { cacheTtl: 86400 } });
+              if (res.ok && res.headers.get("content-type")?.includes("image")) {
+                iconRes = res;
+                break;
+              }
+            } catch (err) {}
+          }
+
+          if (iconRes) {
+            const headers = new Headers(iconRes.headers);
+            headers.set("Access-Control-Allow-Origin", "*");
+            headers.set("Cache-Control", "public, max-age=604800"); // 缓存一周
+            return new Response(iconRes.body, { status: iconRes.status, headers });
+          }
+        } catch (e) {}
+
+        // 如果全部失败，重定向到你的默认黑猫月亮兜底图
+        return Response.redirect("https://p.929255.xyz/black-cat-moon.png", 302);
       }
 
       if (path === "/api/data" && request.method === "GET") {
@@ -665,6 +704,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
           <div class="flex flex-col items-center justify-center h-full transition-opacity duration-300 group-hover:opacity-10">
              <div class="relative mb-2">
                <div class="w-8 h-8 rounded-lg bg-white/50 dark:bg-slate-700/50 p-1.5 flex items-center justify-center shadow-sm">
+                 <!-- 📌 终极方案：走 Worker 自己的代理接口 /api/icon?url=...，如果代理抓取也失败则走自定义黑猫兜底 -->
                  <img :src="item.icon||getFav(item.url)" @error="defIcon" class="w-full h-full object-contain rounded-md filter group-hover:brightness-110" loading="lazy">
                </div>
              </div>
@@ -680,16 +720,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
       </div>
       <div v-if="displayedItems.length===0" class="flex flex-col items-center justify-center py-20 text-slate-400 flex-1"><div class="w-16 h-16 bg-white/50 dark:bg-slate-800/50 rounded-full flex items-center justify-center text-2xl mb-4 shadow-sm"><i class="fas fa-box-open text-slate-300"></i></div><p class="text-sm">{{ t('no_content') }}</p></div>
       
-      <!-- ✨ 底部仪表盘：高透明度、舒适间距、多句随机问候语 -->
+      <!-- 底部仪表盘 -->
       <div v-if="!isSearching" class="mt-auto pt-16 pb-2 flex flex-col items-center gap-6 w-full">
-        <!-- 第一行：问候语卡片（高透明度） -->
+        <!-- 问候语卡片 -->
         <div class="inline-flex items-center justify-center px-5 py-2.5 rounded-2xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-white/5 shadow-sm">
           <span class="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-wide whitespace-nowrap">{{ displayedGreeting }}<span v-if="isTypingActive" class="typing-cursor"></span></span>
         </div>
 
-        <!-- 第二行：时间天气居左/居中，右下角当前位置指示器保持在右侧 -->
+        <!-- 时间天气/定位/位置指示器 -->
         <div class="relative w-full flex items-center justify-center min-h-[44px]">
-          <!-- 时间/日期 + 天气卡片（高透明度） -->
           <div class="inline-flex flex-wrap items-center justify-center gap-4 px-5 py-2.5 rounded-2xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-white/5 shadow-sm">
             <div class="flex items-center gap-2 cursor-pointer transition-opacity duration-300 hover:opacity-80" :title="lang==='zh'?'点击切换公历/农历':''" @click="toggleCalendarMode">
               <div class="flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/90 text-white shadow-sm text-sm"><i class="fas fa-clock"></i></div>
@@ -706,7 +745,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
             </div>
           </div>
 
-          <!-- 右下角原位的“当前位置/栏目指示器”（高透明度） -->
           <div class="absolute right-0 hidden sm:inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-md border border-white/20 dark:border-white/5 shadow-sm">
             <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/90 text-white shadow-sm text-xs"><i class="fas fa-folder-open"></i></div>
             <span class="text-sm font-bold text-slate-800 dark:text-slate-100">{{currentCatName}}</span>
@@ -748,7 +786,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
   }
   setTimeout(closeSplash, 1200);
 
-  // 📌 高精度农历转换引擎 (1900 - 2100)
+  // 农历转换引擎
   const LunarCalendar = (function() {
       const lunarInfo = [
           0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
@@ -780,26 +818,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
 
       function lYearDays(y) {
           let sum = 348;
-          for (let i = 0x8000; i > 0x8; i >>= 1) {
-              sum += (lunarInfo[y - 1900] & i) ? 1 : 0;
-          }
+          for (let i = 0x8000; i > 0x8; i >>= 1) { sum += (lunarInfo[y - 1900] & i) ? 1 : 0; }
           return sum + leapDays(y);
       }
 
       function leapDays(y) {
-          if (leapMonth(y)) {
-              return (lunarInfo[y - 1900] & 0x10000) ? 30 : 29;
-          }
+          if (leapMonth(y)) { return (lunarInfo[y - 1900] & 0x10000) ? 30 : 29; }
           return 0;
       }
 
-      function leapMonth(y) {
-          return lunarInfo[y - 1900] & 0xf;
-      }
-
-      function monthDays(y, m) {
-          return (lunarInfo[y - 1900] & (0x10000 >> m)) ? 30 : 29;
-      }
+      function leapMonth(y) { return lunarInfo[y - 1900] & 0xf; }
+      function monthDays(y, m) { return (lunarInfo[y - 1900] & (0x10000 >> m)) ? 30 : 29; }
 
       return function(date) {
           let i, leap = 0, temp = 0;
@@ -813,69 +842,37 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
               year = i;
           }
 
-          if (offset < 0) {
-              offset += temp;
-              year--;
-          }
+          if (offset < 0) { offset += temp; year--; }
 
           let leapM = leapMonth(year);
           let isLeap = false;
 
           for (i = 1; i < 13 && offset > 0; i++) {
               if (leapM > 0 && i === (leapM + 1) && !isLeap) {
-                  --i;
-                  isLeap = true;
-                  temp = leapDays(year);
-              } else {
-                  temp = monthDays(year, i);
-              }
-
+                  --i; isLeap = true; temp = leapDays(year);
+              } else { temp = monthDays(year, i); }
               if (isLeap && i === (leapM + 1)) isLeap = false;
-
               offset -= temp;
               if (!isLeap) leap++;
           }
 
           if (offset === 0 && leapM > 0 && i === leapM + 1) {
-              if (isLeap) {
-                  isLeap = false;
-              } else {
-                  isLeap = true;
-                  --i;
-                  --leap;
-              }
+              if (isLeap) { isLeap = false; } else { isLeap = true; --i; --leap; }
           }
-
-          if (offset < 0) {
-              offset += temp;
-              --i;
-              --leap;
-          }
+          if (offset < 0) { offset += temp; --i; --leap; }
 
           let month = i;
           let day = offset + 1;
           let gZ = gan[(year - 4) % 10] + zhi[(year - 4) % 12];
-
           let mStr = (isLeap ? "闰" : "") + (monthsName[month - 1] || "正") + "月";
           let dStr = daysName[day - 1] || "初一";
 
-          return {
-              year: year,
-              month: month,
-              day: day,
-              isLeap: isLeap,
-              yearStr: gZ + "年",
-              monthStr: mStr,
-              dayStr: dStr,
-              fullStr: gZ + "年 " + mStr + dStr
-          };
+          return { year, month, day, isLeap, yearStr: gZ + "年", monthStr: mStr, dayStr: dStr, fullStr: gZ + "年 " + mStr + dStr };
       };
   })();
 
   let MESSAGES = {};
-  try {
-      MESSAGES = JSON.parse(document.getElementById('i18n-data').textContent);
-  } catch(e) { console.error("I18N Data Parse Error", e); }
+  try { MESSAGES = JSON.parse(document.getElementById('i18n-data').textContent); } catch(e) { console.error("I18N Data Parse Error", e); }
 
   const { createApp, ref, computed, onMounted, onUnmounted, watch } = Vue;
   createApp({
@@ -900,7 +897,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
       const displayedGreeting = ref('');
       const isTypingActive = ref(true);
       
-      const calendarMode = ref(0); // 0: 公历, 1: 农历
+      const calendarMode = ref(0);
 
       const t = (key) => { 
           if(!MESSAGES[lang.value]) return key;
@@ -947,9 +944,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
           }
       };
 
-      watch(greetingText, (newVal) => {
-          if (newVal) triggerGreetingAnimation();
-      });
+      watch(greetingText, (newVal) => { if (newVal) triggerGreetingAnimation(); });
 
       const getRandomGreeting = (key) => {
           const list = t(key);
@@ -1098,9 +1093,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
           if ((e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') || 
               ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) {
               e.preventDefault();
-              if (searchInputRef.value) {
-                  searchInputRef.value.focus();
-              }
+              if (searchInputRef.value) { searchInputRef.value.focus(); }
           }
       };
 
@@ -1182,8 +1175,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Ar
       const resetToHome = () => { activeCatIdx.value = 0; activeSubIdx.value = -1; searchQuery.value = ""; window.scrollTo({top:0, behavior:'smooth'}); };
 
       const toggleTheme = () => { isDark.value=!isDark.value; localStorage.theme=isDark.value?'dark':'light'; document.documentElement.classList.toggle('dark', isDark.value); };
-      const getFav = (u) => { try { return 'https://favicon.im/' + new URL(u).hostname; } catch { return ''; } };
-      const defIcon = (e) => e.target.src = 'https://ui-avatars.com/api/?background=random&color=fff&name=Nav';
+      
+      // 📌 核心改变：前端直接请求自己 Worker 后端的代理接口
+      const getFav = (u) => { try { return '/api/icon?url=' + encodeURIComponent(u); } catch { return ''; } };
+      // 📌 最终兜底图片：黑猫月亮
+      const defIcon = (e) => e.target.src = 'https://p.929255.xyz/black-cat-moon.png';
       
       return { 
           db, loading, activeCatIdx, activeSubIdx, isDark, mobileMenuOpen, searchQuery, searchInputRef, isSearching, 
@@ -1313,7 +1309,10 @@ body{font-family:'Inter',sans-serif}.hide-scrollbar::-webkit-scrollbar{display:n
                 <i class="fas fa-grip-vertical"></i>
               </div>
 
-              <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center shrink-0 border border-slate-100 shadow-sm dark:bg-slate-700 dark:border-slate-600"><img v-if="db.items[itemId]" :src="db.items[itemId].icon||getFav(db.items[itemId].url)" class="w-6 h-6 object-contain" loading="lazy"><i v-else class="fas fa-question text-slate-300"></i></div>
+              <div class="w-10 h-10 rounded-lg bg-white flex items-center justify-center shrink-0 border border-slate-100 shadow-sm dark:bg-slate-700 dark:border-slate-600">
+                <img v-if="db.items[itemId]" :src="db.items[itemId].icon||getFav(db.items[itemId].url)" @error="defIcon" class="w-6 h-6 object-contain" loading="lazy">
+                <i v-else class="fas fa-question text-slate-300"></i>
+              </div>
               <div class="flex-1 min-w-0" v-if="db.items[itemId]"><div class="flex items-center gap-2"><span class="font-bold text-slate-700 truncate dark:text-slate-200">{{db.items[itemId].title}}</span><span v-if="db.items[itemId].isPrivate" class="text-[10px] bg-amber-100 text-amber-600 px-1.5 rounded border border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800"><i class="fas fa-lock"></i> {{ t('private') }}</span></div><div class="text-xs text-blue-500 truncate mt-0.5 hover:underline">{{db.items[itemId].url}}</div></div>
               <div v-else class="flex-1 text-red-500 text-sm"><i class="fas fa-unlink"></i> 引用已失效</div>
               <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1383,9 +1382,7 @@ body{font-family:'Inter',sans-serif}.hide-scrollbar::-webkit-scrollbar{display:n
 <script>
   window.onerror = function(msg, url, line) { alert('Error: ' + msg); return false; };
   let MESSAGES = {};
-  try {
-      MESSAGES = JSON.parse(document.getElementById('i18n-data').textContent);
-  } catch(e) { console.error("I18N Data Parse Error", e); }
+  try { MESSAGES = JSON.parse(document.getElementById('i18n-data').textContent); } catch(e) { console.error("I18N Data Parse Error", e); }
 
   const { createApp, ref, computed, onMounted } = Vue;
   createApp({
@@ -1434,7 +1431,7 @@ body{font-family:'Inter',sans-serif}.hide-scrollbar::-webkit-scrollbar{display:n
       
       const curItemList = filteredAdminItems;
 
-      // 📌 拖拽排序逻辑
+      // 拖拽排序逻辑
       const dragSourceIndex = ref(null);
       const handleDragStart = (e, index) => {
           dragSourceIndex.value = index;
@@ -1492,8 +1489,10 @@ body{font-family:'Inter',sans-serif}.hide-scrollbar::-webkit-scrollbar{display:n
       const updateMeta = () => { document.title = currentDisplayAdminTitle.value; if(db.value.favicon) { let link = document.querySelector("link[rel~='icon']"); if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); } link.href = db.value.favicon; } };
       const injectCustomCode = () => { if (db.value.customCSS) { const style = document.createElement('style'); style.innerHTML = db.value.customCSS; document.head.appendChild(style); } if (db.value.customJS) { const script = document.createElement('script'); script.innerHTML = db.value.customJS; document.body.appendChild(script); } };
       const isImageUrl = (str) => str && (str.startsWith('http') || str.startsWith('/')) && !str.includes(' ');
-      const getFav = (u) => { try { return 'https://favicon.im/' + new URL(u).hostname; } catch { return ''; } };
-      const defIcon = (e) => e.target.src = 'https://ui-avatars.com/api/?background=random&color=fff&name=Nav';
+      
+      // 管理后台同步使用代理接口
+      const getFav = (u) => { try { return '/api/icon?url=' + encodeURIComponent(u); } catch { return ''; } };
+      const defIcon = (e) => e.target.src = 'https://p.929255.xyz/black-cat-moon.png';
       
       const selCat = (i) => { curCatIdx.value = i; curSubIdx.value = -1; showAllMode.value = false; };
       const selSub = (i) => { curSubIdx.value = i; showAllMode.value = false; };
